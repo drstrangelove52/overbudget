@@ -8,7 +8,7 @@ INSTALL_DIR="/opt/overbudget"
 
 # ── Pakete ────────────────────────────────────────────────────────────────────
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl gnupg git
+apt-get install -y -qq ca-certificates curl gnupg git nano
 
 # ── Docker installieren ───────────────────────────────────────────────────────
 install -m 0755 -d /etc/apt/keyrings
@@ -35,37 +35,40 @@ fi
 
 cd "$INSTALL_DIR"
 
-# ── .env anlegen (nur wenn noch nicht vorhanden) ──────────────────────────────
+# ── .env anlegen ─────────────────────────────────────────────────────────────
 if [ ! -f .env ]; then
   cp .env.example .env
-  # JWT_SECRET automatisch generieren
   JWT=$(openssl rand -hex 32)
   GPG=$(openssl rand -hex 16)
   sed -i "s|change-this-to-a-long-random-string|$JWT|" .env
   sed -i "s|change-this-backup-passphrase|$GPG|" .env
-  echo ""
-  echo "────────────────────────────────────────────────────"
-  echo " .env wurde erstellt. Bitte anpassen:"
-  echo "   APP_USERNAME  (aktuell: admin)"
-  echo "   APP_PASSWORD  (aktuell: changeme)"
-  echo " Pfad: $INSTALL_DIR/.env"
-  echo "────────────────────────────────────────────────────"
-else
-  echo ".env bereits vorhanden, wird nicht überschrieben."
 fi
 
 # ── Caddyfile: Hostname setzen ────────────────────────────────────────────────
-echo ""
 read -rp "Hostname für HTTPS (z.B. overbudget.lan) [Enter = überspringen]: " HOSTNAME
 if [ -n "$HOSTNAME" ]; then
   sed -i "s|your-hostname.local|$HOSTNAME|g" Caddyfile
-  echo "Caddyfile aktualisiert: $HOSTNAME"
+fi
+
+# ── .env anzeigen und zur Anpassung auffordern ────────────────────────────────
+echo ""
+echo "════════════════════════════════════════════════════"
+echo " Aktuelle Konfiguration ($INSTALL_DIR/.env):"
+echo "════════════════════════════════════════════════════"
+cat .env
+echo "════════════════════════════════════════════════════"
+echo ""
+echo " Mindestens APP_USERNAME und APP_PASSWORD anpassen!"
+echo " JWT_SECRET und GPG_PASSPHRASE wurden automatisch generiert."
+echo ""
+read -rp "Jetzt .env bearbeiten? [J/n]: " EDIT
+if [[ "$EDIT" != "n" && "$EDIT" != "N" ]]; then
+  nano .env
 fi
 
 # ── Starten ───────────────────────────────────────────────────────────────────
 echo ""
-echo "Starte OverBudget..."
-docker compose pull --quiet
+echo "Starte OverBudget (Images werden heruntergeladen, dauert einige Minuten)..."
 docker compose up -d --build
 
 echo ""
@@ -74,5 +77,5 @@ echo " OverBudget läuft."
 echo " Frontend:  http://$(hostname -I | awk '{print $1}'):3000"
 echo " API:       http://$(hostname -I | awk '{print $1}'):8000/docs"
 echo ""
-echo " Update später mit: $INSTALL_DIR/scripts/update.sh"
+echo " Update:    $INSTALL_DIR/scripts/update.sh"
 echo "════════════════════════════════════════════════════"
