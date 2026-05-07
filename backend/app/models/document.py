@@ -13,6 +13,7 @@ class DocumentSource(str, enum.Enum):
     upload = "upload"
     mt940 = "mt940"
     csv = "csv"
+    camt053 = "camt053"
 
 
 class DocumentStatus(str, enum.Enum):

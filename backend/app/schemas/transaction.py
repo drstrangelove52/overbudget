@@ -30,6 +30,12 @@ class TransactionUpdate(BaseModel):
     credit_account_id: int | None = None
 
 
+class RuleRef(BaseModel):
+    id: int
+    name: str
+    model_config = {"from_attributes": True}
+
+
 class TransactionResponse(BaseModel):
     id: int
     date: Date
@@ -45,6 +51,7 @@ class TransactionResponse(BaseModel):
     document_id: int | None
     group_id: int | None
     group_description: str | None
+    rule: RuleRef | None = None
 
     model_config = {"from_attributes": True}
 

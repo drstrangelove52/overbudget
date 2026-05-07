@@ -84,14 +84,14 @@ def _matches(tx: Transaction, rule: Rule) -> bool:
     return False
 
 
-def apply_to_transaction(tx: Transaction, rules: list[Rule]) -> bool:
+def apply_to_transaction(tx: Transaction, rules: list[Rule], force: bool = False) -> bool:
     for rule in sorted(rules, key=lambda r: r.priority, reverse=True):
         if not rule.active:
             continue
         if _matches(tx, rule):
-            if rule.debit_account_id and not tx.debit_account_id:
+            if rule.debit_account_id and (force or not tx.debit_account_id):
                 tx.debit_account_id = rule.debit_account_id
-            if rule.credit_account_id and not tx.credit_account_id:
+            if rule.credit_account_id and (force or not tx.credit_account_id):
                 tx.credit_account_id = rule.credit_account_id
             tx.rule_id = rule.id
             if rule.auto_confirm and tx.debit_account_id and tx.credit_account_id:
@@ -103,6 +103,6 @@ def apply_to_transaction(tx: Transaction, rules: list[Rule]) -> bool:
 def apply_all(db: Session) -> dict:
     rules = db.query(Rule).filter(Rule.active.is_(True)).order_by(Rule.priority.desc()).all()
     suggested = db.query(Transaction).filter(Transaction.status == TransactionStatus.suggested).all()
-    matched = sum(1 for t in suggested if apply_to_transaction(t, rules))
+    matched = sum(1 for t in suggested if apply_to_transaction(t, rules, force=True))
     db.commit()
     return {"total": len(suggested), "matched": matched}

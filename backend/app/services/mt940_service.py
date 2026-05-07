@@ -120,6 +120,16 @@ def import_mt940(content: bytes, db: Session, filename: str | None = None) -> di
         db.add(tx)
         created_txs.append(tx)
 
+    if not created_txs:
+        db.rollback()
+        return {
+            "document_id": None,
+            "iban": iban,
+            "bank_account_name": None,
+            "created": 0,
+            "skipped": skipped,
+        }
+
     db.flush()
 
     # Apply active rules to newly created transactions

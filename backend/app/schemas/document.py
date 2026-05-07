@@ -18,7 +18,15 @@ class DocumentResponse(BaseModel):
 
 
 class Mt940ImportResult(BaseModel):
-    document_id: int
+    document_id: int | None
+    iban: str
+    bank_account_name: str | None
+    created: int
+    skipped: int
+
+
+class Camt053ImportResult(BaseModel):
+    document_id: int | None
     iban: str
     bank_account_name: str | None
     created: int
@@ -26,7 +34,7 @@ class Mt940ImportResult(BaseModel):
 
 
 class CsvImportResult(BaseModel):
-    document_id: int
+    document_id: int | None
     account_name: str | None
     created: int
     skipped: int

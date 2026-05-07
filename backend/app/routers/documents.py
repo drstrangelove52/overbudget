@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.document import Document
 from app.models.transaction import Transaction, TransactionStatus
-from app.schemas.document import CsvImportResult, DocumentResponse, Mt940ImportResult
+from app.schemas.document import Camt053ImportResult, CsvImportResult, DocumentResponse, Mt940ImportResult
 from app.schemas.transaction import TransactionResponse
-from app.services import csv_service, mt940_service, transaction as tx_svc
+from app.services import camt_service, csv_service, mt940_service, transaction as tx_svc
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -34,6 +34,12 @@ def list_documents(db: Session = Depends(get_db)):
 async def upload_mt940(file: UploadFile = File(...), db: Session = Depends(get_db)):
     content = await file.read()
     return mt940_service.import_mt940(content, db, filename=file.filename)
+
+
+@router.post("/camt053", response_model=Camt053ImportResult, status_code=201)
+async def upload_camt053(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    content = await file.read()
+    return camt_service.import_camt053(content, db, filename=file.filename)
 
 
 @router.post("/csv", response_model=CsvImportResult, status_code=201)

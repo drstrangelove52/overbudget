@@ -156,6 +156,15 @@ def import_csv(
         db.add(tx)
         created_txs.append(tx)
 
+    if not created_txs:
+        db.rollback()
+        return {
+            "document_id": None,
+            "account_name": None,
+            "created": 0,
+            "skipped": skipped,
+        }
+
     db.flush()
 
     rules = db.query(Rule).filter(Rule.active.is_(True)).order_by(Rule.priority.desc()).all()

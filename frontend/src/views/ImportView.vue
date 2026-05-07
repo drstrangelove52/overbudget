@@ -33,6 +33,25 @@
       </div>
     </template>
 
+    <!-- CAMT.053 tab -->
+    <template v-if="activeTab === 'camt053'">
+      <div
+        class="border-2 border-dashed rounded-xl p-8 text-center transition-colors"
+        :class="camt053Dragging
+          ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
+          : 'border-gray-300 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-600'"
+        @dragover.prevent="camt053Dragging = true"
+        @dragleave.prevent="camt053Dragging = false"
+        @drop.prevent="onCamt053Drop"
+      >
+        <input ref="camt053Input" type="file" accept=".xml,.camt,.camt053" class="hidden" @change="onCamt053Selected" />
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">CAMT.053-Datei (XML) hier ablegen oder</p>
+        <button @click="camt053Input.click()" class="btn-primary" :disabled="uploading">
+          {{ uploading ? 'Wird importiert…' : 'Datei auswählen' }}
+        </button>
+      </div>
+    </template>
+
     <!-- CSV tab -->
     <template v-if="activeTab === 'csv'">
       <!-- Step 1: file selection -->
@@ -133,7 +152,12 @@
       {{ uploadError }}
     </div>
 
-    <div v-if="importResult" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-4 py-3 text-sm text-green-800 dark:text-green-300">
+    <div v-if="importResult && importResult.created === 0"
+      class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
+      <span class="font-semibold">Keine Buchungen gefunden.</span>
+      <template v-if="importResult.skipped"> {{ importResult.skipped }} bereits importierte Buchungen übersprungen.</template>
+    </div>
+    <div v-else-if="importResult" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-4 py-3 text-sm text-green-800 dark:text-green-300">
       <span class="font-semibold">Import erfolgreich:</span>
       {{ importResult.created }} neue Buchungen
       <template v-if="importResult.skipped"> · {{ importResult.skipped }} Duplikate übersprungen</template>
@@ -187,10 +211,16 @@
                 <td class="px-3 py-2 text-gray-700 dark:text-gray-300 text-xs">
                   <div>{{ row.tx.description || row.tx.reference || '—' }}</div>
                   <div v-if="row.tx.counterparty" class="text-gray-400 mt-0.5">{{ row.tx.counterparty }}</div>
-                  <button v-if="row.tx.description" type="button" @click="openRuleModal(row.tx)"
-                    class="text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 text-xs mt-0.5 transition-colors">
-                    + Regel
-                  </button>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span v-if="row.tx.rule" class="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400">
+                      <svg class="w-3 h-3 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                      {{ row.tx.rule.name }}
+                    </span>
+                    <button v-if="row.tx.description" type="button" @click="openRuleModal(row.tx)"
+                      class="text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors">
+                      + Regel
+                    </button>
+                  </div>
                 </td>
                 <td class="px-2 py-1">
                   <div class="flex items-center gap-0.5">
@@ -439,6 +469,7 @@ import RuleModal from '../components/RuleModal.vue'
 
 const tabs = [
   { id: 'mt940', label: 'MT940' },
+  { id: 'camt053', label: 'CAMT.053' },
   { id: 'csv', label: 'CSV' },
 ]
 const activeTab = ref('mt940')
@@ -446,6 +477,10 @@ const activeTab = ref('mt940')
 // MT940
 const mt940Input = ref(null)
 const dragging = ref(false)
+
+// CAMT.053
+const camt053Input = ref(null)
+const camt053Dragging = ref(false)
 
 // CSV
 const csvInput = ref(null)
@@ -573,7 +608,7 @@ const fmtDateTime = (s) => {
   return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
 
-const sourceLabel = (s) => s === 'mt940' ? 'MT940' : s.toUpperCase()
+const sourceLabel = (s) => ({ mt940: 'MT940', camt053: 'CAMT.053', csv: 'CSV' }[s] ?? s.toUpperCase())
 
 function isComplete(t) {
   return !!(t.debit_account_id && t.credit_account_id)
@@ -733,13 +768,51 @@ async function uploadCsv() {
     if (!res.ok) { uploadError.value = data.detail ?? 'Import fehlgeschlagen.'; return }
     importResult.value = data
     resetCsvPreview()
-    await loadDocument(data.document_id)
-    await loadDocuments()
+    if (data.document_id) {
+      await loadDocument(data.document_id)
+      await loadDocuments()
+    }
   } catch {
     uploadError.value = 'Netzwerkfehler.'
   } finally {
     uploading.value = false
   }
+}
+
+// --- CAMT.053 ---
+async function processCamt053(file) {
+  if (!file) return
+  uploading.value = true
+  uploadError.value = null
+  importResult.value = null
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await apiFetch('/api/documents/camt053', { method: 'POST', body: form })
+    const data = await res.json()
+    if (!res.ok) { uploadError.value = data.detail ?? 'Import fehlgeschlagen.'; return }
+    importResult.value = data
+    if (data.document_id) {
+      await loadDocument(data.document_id)
+      await loadDocuments()
+    }
+  } catch {
+    uploadError.value = 'Netzwerkfehler.'
+  } finally {
+    uploading.value = false
+  }
+}
+
+function onCamt053Drop(e) {
+  camt053Dragging.value = false
+  const file = e.dataTransfer.files[0]
+  if (file) processCamt053(file)
+}
+
+function onCamt053Selected(e) {
+  const file = e.target.files[0]
+  if (file) processCamt053(file)
+  e.target.value = ''
 }
 
 // --- MT940 ---
@@ -755,8 +828,10 @@ async function processMt940(file) {
     const data = await res.json()
     if (!res.ok) { uploadError.value = data.detail ?? 'Import fehlgeschlagen.'; return }
     importResult.value = data
-    await loadDocument(data.document_id)
-    await loadDocuments()
+    if (data.document_id) {
+      await loadDocument(data.document_id)
+      await loadDocuments()
+    }
   } catch {
     uploadError.value = 'Netzwerkfehler.'
   } finally {

@@ -10,6 +10,7 @@ def _with_accounts(q):
     return q.options(
         joinedload(Transaction.debit_account),
         joinedload(Transaction.credit_account),
+        joinedload(Transaction.rule),
     )
 
 
