@@ -39,6 +39,7 @@ def _set(db: Session, key: str, value: str) -> None:
 def seed_credentials(db: Session) -> None:
     if _get(db, _KEY_USERNAME) is None:
         _set(db, _KEY_USERNAME, settings.app_username)
+    if _get(db, _KEY_PASSWORD_HASH) is None:
         _set(db, _KEY_PASSWORD_HASH, _hash(settings.app_password))
 
 
