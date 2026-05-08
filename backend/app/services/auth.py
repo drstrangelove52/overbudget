@@ -2,18 +2,61 @@ import secrets
 from datetime import datetime, timedelta
 
 from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.app_setting import AppSetting
 
 _ALGORITHM = "HS256"
 _TOKEN_EXPIRE_DAYS = 30
+_KEY_USERNAME = "auth.username"
+_KEY_PASSWORD_HASH = "auth.password_hash"
+
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def verify_credentials(username: str, password: str) -> bool:
+def _get(db: Session, key: str) -> str | None:
+    row = db.get(AppSetting, key)
+    return row.value if row else None
+
+
+def _set(db: Session, key: str, value: str) -> None:
+    row = db.get(AppSetting, key)
+    if row:
+        row.value = value
+    else:
+        db.add(AppSetting(key=key, value=value))
+    db.commit()
+
+
+def seed_credentials(db: Session) -> None:
+    """Called on startup: write .env credentials to DB if table is empty."""
+    if _get(db, _KEY_USERNAME) is None:
+        _set(db, _KEY_USERNAME, settings.app_username)
+        _set(db, _KEY_PASSWORD_HASH, _pwd_context.hash(settings.app_password))
+
+
+def verify_credentials(db: Session, username: str, password: str) -> bool:
+    stored_username = _get(db, _KEY_USERNAME)
+    stored_hash = _get(db, _KEY_PASSWORD_HASH)
+    if stored_username is None or stored_hash is None:
+        return False
     return (
-        secrets.compare_digest(username, settings.app_username)
-        and secrets.compare_digest(password, settings.app_password)
+        secrets.compare_digest(username, stored_username)
+        and _pwd_context.verify(password, stored_hash)
     )
+
+
+def update_credentials(db: Session, new_username: str | None, new_password: str | None) -> str:
+    """Update username and/or password. Returns the (possibly new) username."""
+    current_username = _get(db, _KEY_USERNAME) or settings.app_username
+    if new_username:
+        _set(db, _KEY_USERNAME, new_username)
+        current_username = new_username
+    if new_password:
+        _set(db, _KEY_PASSWORD_HASH, _pwd_context.hash(new_password))
+    return current_username
 
 
 def create_access_token(username: str) -> str:
