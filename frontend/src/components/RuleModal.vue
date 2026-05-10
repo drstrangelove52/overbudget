@@ -64,11 +64,8 @@
             :class="preview.matched > 0
               ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
               : 'bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'">
-            <span class="font-medium">{{ preview.matched }} von {{ preview.total }} offenen Buchungen passen</span>
-            <template v-if="preview.samples.length">
-              <span class="mx-1 opacity-50">·</span>
-              <span class="opacity-75 truncate">{{ preview.samples[0] }}</span>
-            </template>
+            <div class="font-medium">{{ preview.matched }} von {{ preview.total }} offenen Buchungen passen</div>
+            <div v-if="preview.samples.length" class="opacity-60 truncate mt-0.5">{{ preview.samples[0] }}</div>
           </div>
         </div>
 
