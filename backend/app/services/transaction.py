@@ -25,6 +25,21 @@ def get_all(db: Session, year: int | None = None) -> list[Transaction]:
     return q.order_by(Transaction.date.asc(), Transaction.id.asc()).all()
 
 
+def get_by_account(db: Session, account_id: int, year: int | None = None) -> list[Transaction]:
+    from sqlalchemy import extract, or_
+    q = (
+        _with_accounts(db.query(Transaction))
+        .filter(Transaction.status == TransactionStatus.booked)
+        .filter(or_(
+            Transaction.debit_account_id == account_id,
+            Transaction.credit_account_id == account_id,
+        ))
+    )
+    if year is not None:
+        q = q.filter(extract('year', Transaction.date) == year)
+    return q.order_by(Transaction.date.asc(), Transaction.id.asc()).all()
+
+
 def get_by_document(db: Session, document_id: int) -> list[Transaction]:
     return (
         _with_accounts(db.query(Transaction))

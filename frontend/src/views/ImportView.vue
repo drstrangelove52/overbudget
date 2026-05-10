@@ -187,6 +187,25 @@
 
       <div v-if="bookError" class="text-red-500 text-sm">{{ bookError }}</div>
 
+      <!-- Filter bar -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <button v-for="s in [['all','Alle'],['open','Offen'],['assigned','Zugewiesen']]" :key="s[0]"
+            @click="filterStatus = s[0]"
+            class="px-3 py-1 rounded-md text-xs font-medium transition-colors"
+            :class="filterStatus === s[0]
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'">
+            {{ s[1] }}
+          </button>
+        </div>
+        <input v-model="filterText" type="search" placeholder="Suche in Beschreibung, Gegenpartei…"
+          class="flex-1 min-w-48 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <span v-if="filterStatus !== 'all' || filterText" class="text-xs text-gray-400">
+          {{ displayRows.length === filteredSuggestions.length ? filteredSuggestions.length : displayRows.length }} von {{ suggestions.length }} angezeigt
+        </span>
+      </div>
+
       <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
         <table class="w-full text-sm border-collapse">
           <thead>
@@ -568,10 +587,52 @@ const bookableAccounts = computed(() =>
 
 const pendingCount = computed(() => suggestions.value.filter(t => !isComplete(t)).length)
 
+// Filter state
+const filterStatus = ref('all')
+const filterText = ref('')
+
+const filteredSuggestions = computed(() => {
+  const text = filterText.value.toLowerCase().trim()
+  const status = filterStatus.value
+
+  // Determine which split groups pass the filter (group-level decision)
+  const groupMap = {}
+  for (const t of suggestions.value) {
+    if (t.group_id != null) {
+      if (!groupMap[t.group_id]) groupMap[t.group_id] = []
+      groupMap[t.group_id].push(t)
+    }
+  }
+  const includedGroups = new Set()
+  for (const [gid, lines] of Object.entries(groupMap)) {
+    const textOk = !text || lines.some(l =>
+      (l.description || '').toLowerCase().includes(text) ||
+      (l.counterparty || '').toLowerCase().includes(text)
+    )
+    const allComplete = lines.every(l => isComplete(l))
+    const statusOk = status === 'all' ||
+      (status === 'open' && !allComplete) ||
+      (status === 'assigned' && allComplete)
+    if (textOk && statusOk) includedGroups.add(parseInt(gid))
+  }
+
+  return suggestions.value.filter(t => {
+    if (t.group_id != null) return includedGroups.has(t.group_id)
+    const textOk = !text ||
+      (t.description || '').toLowerCase().includes(text) ||
+      (t.counterparty || '').toLowerCase().includes(text)
+    const complete = isComplete(t)
+    const statusOk = status === 'all' ||
+      (status === 'open' && !complete) ||
+      (status === 'assigned' && complete)
+    return textOk && statusOk
+  })
+})
+
 const displayRows = computed(() => {
   const rows = []
   const handled = new Set()
-  for (const t of suggestions.value) {
+  for (const t of filteredSuggestions.value) {
     if (t.group_id != null) {
       if (!handled.has(t.group_id)) {
         handled.add(t.group_id)

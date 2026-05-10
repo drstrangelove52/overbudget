@@ -12,7 +12,7 @@
               :key="link.to"
               :to="link.to"
               class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-              :class="$route.path === link.to
+              :class="($route.path === link.to || (link.to !== '/' && $route.path.startsWith(link.to)))
                 ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
             >

@@ -8,6 +8,7 @@ import BudgetView from '../views/BudgetView.vue'
 import LoginView from '../views/LoginView.vue'
 import EinstellungenView from '../views/EinstellungenView.vue'
 import InfoView from '../views/InfoView.vue'
+import KontenblattView from '../views/KontenblattView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -15,6 +16,7 @@ const router = createRouter({
     { path: '/login', component: LoginView },
     { path: '/', component: HomeView },
     { path: '/konten', component: AccountsView },
+    { path: '/konten/:id', component: KontenblattView },
     { path: '/buchungen', component: TransactionsView },
     { path: '/import', component: ImportView },
     { path: '/regeln', component: RulesView },

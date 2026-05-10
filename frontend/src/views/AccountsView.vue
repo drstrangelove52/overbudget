@@ -56,7 +56,11 @@
               {{ row.number }}
             </td>
             <td class="px-4 py-2.5" :class="row.is_group ? 'font-semibold uppercase tracking-wide text-xs text-gray-700 dark:text-gray-200' : ''">
-              <span :class="!row.is_group && row.sum_in ? 'pl-3' : ''">{{ row.name }}</span>
+              <RouterLink v-if="!row.is_group" :to="`/konten/${row.id}`"
+                :class="['hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors', row.sum_in ? 'pl-3' : '']">
+                {{ row.name }}
+              </RouterLink>
+              <span v-else>{{ row.name }}</span>
             </td>
             <td class="px-4 py-2.5">
               <span v-if="!row.is_group" class="px-2 py-0.5 rounded-full text-xs font-medium" :class="typeClass(row.type)">
@@ -221,6 +225,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import { apiFetch } from '../api.js'
 import AccountModal from '../components/AccountModal.vue'
 
