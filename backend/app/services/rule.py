@@ -53,17 +53,21 @@ def delete(db: Session, rule_id: int) -> None:
     db.commit()
 
 
+def _normalize(s: str) -> str:
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def _eval(tx: Transaction, cond: RuleCondition) -> bool:
     if cond.field == ConditionField.description:
-        target = tx.description or ""
+        target = _normalize(tx.description or "")
     elif cond.field == ConditionField.counterparty:
-        target = tx.counterparty or ""
+        target = _normalize(tx.counterparty or "")
     elif cond.field == ConditionField.amount:
         target = str(tx.amount)
     else:
         return False
 
-    value = cond.value
+    value = _normalize(cond.value)
     op = cond.operator
     if op == ConditionOperator.contains:
         return value.lower() in target.lower()
