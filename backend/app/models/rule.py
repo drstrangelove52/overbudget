@@ -43,7 +43,9 @@ class Rule(Base):
     priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     condition_logic: Mapped[ConditionLogic] = mapped_column(
-        Enum(ConditionLogic), default=ConditionLogic.AND, nullable=False
+        Enum(ConditionLogic, values_callable=lambda x: [e.value for e in x]),
+        default=ConditionLogic.AND,
+        nullable=False,
     )
     debit_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     credit_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
