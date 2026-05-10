@@ -1,7 +1,7 @@
 from app.models.account import Account, AccountType
 from app.models.document import Document, DocumentSource, DocumentStatus
 from app.models.transaction import Transaction, TransactionStatus
-from app.models.rule import Rule, ConditionField, ConditionOperator
+from app.models.rule import Rule, RuleCondition, ConditionField, ConditionOperator, ConditionLogic
 from app.models.budget import Budget, BudgetPeriod
 from app.models.app_setting import AppSetting
 
@@ -9,7 +9,7 @@ __all__ = [
     "Account", "AccountType",
     "Document", "DocumentSource", "DocumentStatus",
     "Transaction", "TransactionStatus",
-    "Rule", "ConditionField", "ConditionOperator",
+    "Rule", "RuleCondition", "ConditionField", "ConditionOperator", "ConditionLogic",
     "Budget", "BudgetPeriod",
     "AppSetting",
 ]

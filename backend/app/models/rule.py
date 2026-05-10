@@ -20,6 +20,21 @@ class ConditionOperator(str, enum.Enum):
     regex = "regex"
 
 
+class ConditionLogic(str, enum.Enum):
+    AND = "and"
+    OR = "or"
+
+
+class RuleCondition(Base):
+    __tablename__ = "rule_conditions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id", ondelete="CASCADE"), nullable=False)
+    field: Mapped[ConditionField] = mapped_column(Enum(ConditionField), nullable=False)
+    operator: Mapped[ConditionOperator] = mapped_column(Enum(ConditionOperator), nullable=False)
+    value: Mapped[str] = mapped_column(String(500), nullable=False)
+
+
 class Rule(Base):
     __tablename__ = "rules"
 
@@ -27,9 +42,9 @@ class Rule(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    condition_field: Mapped[ConditionField] = mapped_column(Enum(ConditionField), nullable=False)
-    condition_operator: Mapped[ConditionOperator] = mapped_column(Enum(ConditionOperator), nullable=False)
-    condition_value: Mapped[str] = mapped_column(String(500), nullable=False)
+    condition_logic: Mapped[ConditionLogic] = mapped_column(
+        Enum(ConditionLogic), default=ConditionLogic.AND, nullable=False
+    )
     debit_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     credit_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     auto_confirm: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -37,6 +52,9 @@ class Rule(Base):
         ForeignKey("transactions.id"), nullable=True
     )
 
+    conditions: Mapped[list["RuleCondition"]] = relationship(
+        "RuleCondition", cascade="all, delete-orphan", lazy="selectin"
+    )
     debit_account: Mapped["Account | None"] = relationship(  # noqa: F821
         "Account", foreign_keys=[debit_account_id]
     )

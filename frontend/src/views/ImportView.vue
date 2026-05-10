@@ -512,7 +512,7 @@ function openAccountModal(tx, side) {
 
 function openRuleModal(tx) {
   rulePrefill.value = tx.description
-    ? { condition_value: tx.description, condition_field: 'description' }
+    ? { conditions: [{ field: 'description', operator: 'contains', value: tx.description }] }
     : null
   ruleModalOpen.value = true
 }

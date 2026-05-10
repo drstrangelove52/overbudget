@@ -1,9 +1,10 @@
 import re
 from decimal import Decimal, InvalidOperation
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.rule import Rule, ConditionField, ConditionOperator
+from app.models.rule import ConditionField, ConditionLogic, ConditionOperator, Rule, RuleCondition
 from app.models.transaction import Transaction, TransactionStatus
 from app.schemas.rule import RuleCreate, RuleUpdate
 
@@ -27,7 +28,8 @@ def get_by_id(db: Session, rule_id: int) -> Rule:
 
 
 def create(db: Session, data: RuleCreate) -> Rule:
-    r = Rule(**data.model_dump())
+    conditions = [RuleCondition(**c.model_dump()) for c in data.conditions]
+    r = Rule(**data.model_dump(exclude={"conditions"}), conditions=conditions)
     db.add(r)
     db.commit()
     return get_by_id(db, r.id)
@@ -35,8 +37,10 @@ def create(db: Session, data: RuleCreate) -> Rule:
 
 def update(db: Session, rule_id: int, data: RuleUpdate) -> Rule:
     r = get_by_id(db, rule_id)
-    for field, value in data.model_dump(exclude_unset=True).items():
+    for field, value in data.model_dump(exclude_unset=True, exclude={"conditions"}).items():
         setattr(r, field, value)
+    if data.conditions is not None:
+        r.conditions = [RuleCondition(**c.model_dump()) for c in data.conditions]
     db.commit()
     return get_by_id(db, rule_id)
 
@@ -49,19 +53,18 @@ def delete(db: Session, rule_id: int) -> None:
     db.commit()
 
 
-def _matches(tx: Transaction, rule: Rule) -> bool:
-    field = rule.condition_field
-    if field == ConditionField.description:
+def _eval(tx: Transaction, cond: RuleCondition) -> bool:
+    if cond.field == ConditionField.description:
         target = tx.description or ""
-    elif field == ConditionField.counterparty:
+    elif cond.field == ConditionField.counterparty:
         target = tx.counterparty or ""
-    elif field == ConditionField.amount:
+    elif cond.field == ConditionField.amount:
         target = str(tx.amount)
     else:
         return False
 
-    value = rule.condition_value
-    op = rule.condition_operator
+    value = cond.value
+    op = cond.operator
     if op == ConditionOperator.contains:
         return value.lower() in target.lower()
     elif op == ConditionOperator.equals:
@@ -82,6 +85,15 @@ def _matches(tx: Transaction, rule: Rule) -> bool:
         except re.error:
             return False
     return False
+
+
+def _matches(tx: Transaction, rule: Rule) -> bool:
+    if not rule.conditions:
+        return False
+    results = [_eval(tx, c) for c in rule.conditions]
+    if rule.condition_logic == ConditionLogic.AND:
+        return all(results)
+    return any(results)
 
 
 def apply_to_transaction(tx: Transaction, rules: list[Rule], force: bool = False) -> bool:

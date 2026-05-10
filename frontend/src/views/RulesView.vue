@@ -109,11 +109,16 @@ const applyResult = ref(null)
 const deleteTarget = ref(null)
 const deleteError = ref(null)
 
-const fieldLabels = { description: 'Beschreibung', counterparty: 'Gegenseite', amount: 'Betrag' }
+const fieldLabels = { description: 'Beschreibung', counterparty: 'Gegenpartei', amount: 'Betrag' }
 const opLabels = { contains: 'enthält', equals: '=', lt: '<', gt: '>', regex: '~' }
+const logicLabels = { and: 'UND', or: 'ODER' }
 
-const fmtCondition = (r) =>
-  `${fieldLabels[r.condition_field] ?? r.condition_field} ${opLabels[r.condition_operator] ?? r.condition_operator} "${r.condition_value}"`
+const fmtCondition = (r) => {
+  const sep = ' ' + (logicLabels[r.condition_logic] ?? 'UND') + ' '
+  return (r.conditions ?? []).map(c =>
+    `${fieldLabels[c.field] ?? c.field} ${opLabels[c.operator] ?? c.operator} "${c.value}"`
+  ).join(sep)
+}
 
 const bookableAccounts = computed(() =>
   [...accounts.value]
