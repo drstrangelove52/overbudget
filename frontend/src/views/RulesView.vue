@@ -22,13 +22,25 @@
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 uppercase text-xs tracking-wide">
-            <th class="text-left px-4 py-2.5 border-b border-gray-200 dark:border-gray-700">Name</th>
+            <th class="text-left px-4 py-2.5 border-b border-gray-200 dark:border-gray-700">
+              <button @click="setSort('name')" class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+                Name <span class="text-gray-300 dark:text-gray-600">{{ sortIcon('name') }}</span>
+              </button>
+            </th>
             <th class="text-left px-4 py-2.5 border-b border-gray-200 dark:border-gray-700">Bedingung</th>
             <th class="text-left px-4 py-2.5 w-40 border-b border-gray-200 dark:border-gray-700">Soll</th>
             <th class="text-left px-4 py-2.5 w-40 border-b border-gray-200 dark:border-gray-700">Haben</th>
-            <th class="text-center px-3 py-2.5 w-16 border-b border-gray-200 dark:border-gray-700">Prio</th>
-            <th class="text-center px-3 py-2.5 w-20 border-b border-gray-200 dark:border-gray-700">Status</th>
-            <th class="w-24 border-b border-gray-200 dark:border-gray-700"></th>
+            <th class="text-center px-3 py-2.5 w-16 border-b border-gray-200 dark:border-gray-700">
+              <button @click="setSort('priority')" class="flex items-center gap-1 mx-auto hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+                Prio <span class="text-gray-300 dark:text-gray-600">{{ sortIcon('priority') }}</span>
+              </button>
+            </th>
+            <th class="text-center px-3 py-2.5 w-20 border-b border-gray-200 dark:border-gray-700">
+              <button @click="setSort('status')" class="flex items-center gap-1 mx-auto hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+                Status <span class="text-gray-300 dark:text-gray-600">{{ sortIcon('status') }}</span>
+              </button>
+            </th>
+            <th class="w-32 border-b border-gray-200 dark:border-gray-700"></th>
           </tr>
         </thead>
         <tbody>
@@ -36,7 +48,7 @@
             <td colspan="7" class="text-center py-10 text-gray-400 text-sm">Noch keine Regeln vorhanden</td>
           </tr>
           <tr
-            v-for="r in rules" :key="r.id"
+            v-for="r in sortedRules" :key="r.id"
             class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/20"
             :class="!r.active ? 'opacity-50' : ''"
           >
@@ -100,6 +112,31 @@ import { apiFetch } from '../api.js'
 import RuleModal from '../components/RuleModal.vue'
 
 const rules = ref([])
+
+const sortBy = ref('priority')
+const sortDir = ref('desc')
+
+function setSort(col) {
+  if (sortBy.value === col) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  else { sortBy.value = col; sortDir.value = col === 'priority' ? 'desc' : 'asc' }
+}
+
+const sortIcon = (col) => {
+  if (sortBy.value !== col) return '↕'
+  return sortDir.value === 'asc' ? '↑' : '↓'
+}
+
+const statusRank = (r) => r.auto_confirm ? 0 : r.active ? 1 : 2
+
+const sortedRules = computed(() => {
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...rules.value].sort((a, b) => {
+    if (sortBy.value === 'name') return dir * a.name.localeCompare(b.name, 'de')
+    if (sortBy.value === 'priority') return dir * (a.priority - b.priority)
+    if (sortBy.value === 'status') return dir * (statusRank(a) - statusRank(b))
+    return 0
+  })
+})
 const accounts = ref([])
 const error = ref(null)
 const showRuleModal = ref(false)
