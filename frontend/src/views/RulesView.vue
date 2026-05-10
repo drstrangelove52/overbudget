@@ -69,6 +69,7 @@
             </td>
             <td class="px-4 py-2.5 text-right whitespace-nowrap">
               <button @click="openEdit(r)" class="text-gray-400 hover:text-indigo-500 mr-3 text-xs transition-colors">Bearb.</button>
+              <button @click="cloneRule(r)" class="text-gray-400 hover:text-indigo-500 mr-3 text-xs transition-colors">Klonen</button>
               <button @click="confirmDelete(r)" class="text-gray-400 hover:text-red-500 text-xs transition-colors">Löschen</button>
             </td>
           </tr>
@@ -143,6 +144,21 @@ function openEdit(r) { ruleEditData.value = r; showRuleModal.value = true }
 async function onRuleSaved() {
   await apiFetch('/api/rules/apply', { method: 'POST' })
   await load()
+}
+
+async function cloneRule(r) {
+  const body = {
+    name: `Kopie von ${r.name}`,
+    priority: r.priority,
+    active: false,
+    condition_logic: r.condition_logic,
+    conditions: r.conditions.map(c => ({ field: c.field, operator: c.operator, value: c.value })),
+    debit_account_id: r.debit_account_id,
+    credit_account_id: r.credit_account_id,
+    auto_confirm: r.auto_confirm,
+  }
+  const res = await apiFetch('/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  if (res.ok) await load()
 }
 
 function confirmDelete(r) { deleteTarget.value = r; deleteError.value = null }
