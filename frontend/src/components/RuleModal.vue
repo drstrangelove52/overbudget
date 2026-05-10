@@ -16,40 +16,44 @@
         <div>
           <label class="label">Bedingungen</label>
           <div class="space-y-2">
-            <div v-for="(cond, i) in form.conditions" :key="i" class="flex gap-2 items-center">
-              <!-- Prefix: "Wenn" or AND/OR chip -->
-              <div class="w-14 flex-shrink-0 text-right">
+            <div v-for="(cond, i) in form.conditions" :key="i" class="flex items-center gap-2">
+              <!-- Prefix -->
+              <div class="w-12 shrink-0 text-right">
                 <span v-if="i === 0" class="text-xs text-gray-400 font-medium">Wenn</span>
                 <button v-else type="button" @click="toggleLogic"
-                  class="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:opacity-75 transition-opacity cursor-pointer">
+                  class="text-xs font-semibold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:opacity-75 transition-opacity">
                   {{ form.condition_logic === 'and' ? 'UND' : 'ODER' }}
                 </button>
               </div>
 
-              <select v-model="cond.field" @change="onFieldChange(cond)" class="input w-36 flex-shrink-0">
-                <option value="description">Beschreibung</option>
-                <option value="counterparty">Gegenpartei</option>
-                <option value="amount">Betrag (CHF)</option>
-              </select>
+              <!-- Field / Operator / Value in equal-width grid -->
+              <div class="grid grid-cols-3 gap-1.5 flex-1 min-w-0">
+                <select v-model="cond.field" @change="onFieldChange(cond)" class="input">
+                  <option value="description">Beschreibung</option>
+                  <option value="counterparty">Gegenpartei</option>
+                  <option value="amount">Betrag (CHF)</option>
+                </select>
 
-              <select v-model="cond.operator" class="input w-32 flex-shrink-0">
-                <template v-if="cond.field === 'amount'">
-                  <option value="lt">kleiner als</option>
-                  <option value="gt">grösser als</option>
-                  <option value="equals">gleich</option>
-                </template>
-                <template v-else>
-                  <option value="contains">enthält</option>
-                  <option value="equals">gleich</option>
-                  <option value="regex">Regex</option>
-                </template>
-              </select>
+                <select v-model="cond.operator" class="input">
+                  <template v-if="cond.field === 'amount'">
+                    <option value="lt">kleiner als</option>
+                    <option value="gt">grösser als</option>
+                    <option value="equals">gleich</option>
+                  </template>
+                  <template v-else>
+                    <option value="contains">enthält</option>
+                    <option value="equals">gleich</option>
+                    <option value="regex">Regex</option>
+                  </template>
+                </select>
 
-              <input v-model="cond.value" type="text" class="input flex-1 min-w-0"
-                :placeholder="cond.field === 'amount' ? '50' : 'z.B. Migros'" />
+                <input v-model="cond.value" type="text" class="input"
+                  :placeholder="cond.field === 'amount' ? '50' : 'Migros'" />
+              </div>
 
               <button v-if="form.conditions.length > 1" type="button" @click="removeCond(i)"
-                class="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0 text-lg leading-none">×</button>
+                class="shrink-0 text-gray-400 hover:text-red-500 transition-colors text-lg leading-none">×</button>
+              <div v-else class="w-4 shrink-0"></div>
             </div>
           </div>
           <button type="button" @click="addCond"
