@@ -210,7 +210,9 @@
                 <td class="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{{ fmtDate(row.tx.date) }}</td>
                 <td class="px-3 py-2 text-gray-700 dark:text-gray-300 text-xs">
                   <div>{{ row.tx.description || row.tx.reference || '—' }}</div>
-                  <div v-if="row.tx.counterparty" class="text-gray-400 mt-0.5">{{ row.tx.counterparty }}</div>
+                  <div v-if="row.tx.counterparty" class="text-gray-400 mt-0.5">
+                    <span class="text-gray-300 dark:text-gray-600">Gegenpartei:</span> {{ row.tx.counterparty }}
+                  </div>
                   <div class="flex items-center gap-2 mt-0.5">
                     <span v-if="row.tx.rule" class="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400">
                       <svg class="w-3 h-3 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
