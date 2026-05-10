@@ -52,3 +52,14 @@ class RuleResponse(BaseModel):
     auto_confirm: bool
 
     model_config = {"from_attributes": True}
+
+
+class RulePreviewRequest(BaseModel):
+    condition_logic: ConditionLogic = ConditionLogic.AND
+    conditions: list[ConditionCreate]
+
+
+class RulePreviewResponse(BaseModel):
+    matched: int
+    total: int
+    samples: list[str]

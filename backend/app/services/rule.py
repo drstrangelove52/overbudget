@@ -112,6 +112,16 @@ def apply_to_transaction(tx: Transaction, rules: list[Rule], force: bool = False
     return False
 
 
+def preview(db: Session, condition_logic: ConditionLogic, conditions: list) -> dict:
+    suggested = db.query(Transaction).filter(Transaction.status == TransactionStatus.suggested).all()
+    dummy = Rule()
+    dummy.condition_logic = condition_logic
+    dummy.conditions = [RuleCondition(**c.model_dump()) for c in conditions]
+    matches = [tx for tx in suggested if _matches(tx, dummy)]
+    samples = [tx.description or tx.counterparty or "" for tx in matches[:5]]
+    return {"matched": len(matches), "total": len(suggested), "samples": samples}
+
+
 def apply_all(db: Session) -> dict:
     rules = db.query(Rule).filter(Rule.active.is_(True)).order_by(Rule.priority.desc()).all()
     suggested = db.query(Transaction).filter(Transaction.status == TransactionStatus.suggested).all()

@@ -60,6 +60,16 @@
             class="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
             + Bedingung hinzufügen
           </button>
+          <div v-if="preview !== null" class="mt-2 text-xs rounded-lg px-3 py-2"
+            :class="preview.matched > 0
+              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+              : 'bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'">
+            <span class="font-medium">{{ preview.matched }} von {{ preview.total }} offenen Buchungen passen</span>
+            <template v-if="preview.samples.length">
+              <span class="mx-1 opacity-50">·</span>
+              <span class="opacity-75 truncate">{{ preview.samples[0] }}</span>
+            </template>
+          </div>
         </div>
 
         <!-- Accounts -->
@@ -112,6 +122,8 @@
 import { ref, computed, watch } from 'vue'
 import { apiFetch } from '../api.js'
 
+let previewTimer = null
+
 const props = defineProps({
   modelValue: Boolean,
   accounts: { type: Array, default: () => [] },
@@ -122,6 +134,7 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 const saving = ref(false)
 const formError = ref(null)
+const preview = ref(null)
 
 const bookableAccounts = computed(() =>
   [...props.accounts]
@@ -143,7 +156,7 @@ const emptyForm = () => ({
 const form = ref(emptyForm())
 
 watch(() => props.modelValue, (open) => {
-  if (!open) return
+  if (!open) { preview.value = null; return }
   formError.value = null
   if (props.editData) {
     form.value = {
@@ -164,6 +177,22 @@ watch(() => props.modelValue, (open) => {
     form.value = base
   }
 })
+
+watch(() => [form.value.condition_logic, JSON.stringify(form.value.conditions)], () => {
+  clearTimeout(previewTimer)
+  const conds = form.value.conditions
+  if (!conds.length || conds.some(c => !c.value.trim())) { preview.value = null; return }
+  previewTimer = setTimeout(async () => {
+    try {
+      const res = await apiFetch('/api/rules/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ condition_logic: form.value.condition_logic, conditions: conds }),
+      })
+      if (res.ok) preview.value = await res.json()
+    } catch { /* silent */ }
+  }, 400)
+}, { deep: true })
 
 function addCond() {
   form.value.conditions.push({ field: 'description', operator: 'contains', value: '' })
