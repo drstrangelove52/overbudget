@@ -79,6 +79,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    environment:
+      LAN_IP: ${LAN_IP}
     ports:
       - "${LAN_IP}:80:80"
       - "${LAN_IP}:443:443"

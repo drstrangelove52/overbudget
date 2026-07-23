@@ -298,15 +298,22 @@ Das **Festkonto** ist das Konto, das bei jeder Buchung im Import auf einer Seite
 
 ### Mit Caddy (LAN-Direktzugriff)
 
-Das mitgelieferte `Caddyfile` terminiert HTTPS portbasiert (nicht an einen festen Hostnamen
-gebunden — läuft daher unverändert auf jeder VM):
+Das mitgelieferte `Caddyfile` terminiert HTTPS für die per `LAN_IP` übergebene Adresse
+(Caddys native `{$VAR}`-Interpolation, von `install.sh`/`.env` automatisch gesetzt —
+kein manueller Hostname-Eintrag nötig):
 
 ```caddy
-:443 {
+https://{$LAN_IP} {
     tls internal
     reverse_proxy frontend:80
 }
 ```
+
+**Wichtig:** Ein reiner Port-Block ohne Hostnamen (`:443 { tls internal }`) funktioniert
+hier *nicht* — Caddy kann dann keinem Zertifikat eine Adresse zuordnen und bricht den
+TLS-Handshake mit einem `internal_error`-Alert ab (beim Testen auf overbudget01 so
+gefunden). Ein konkreter Hostname oder eine IP im Site-Block ist zwingend, damit Caddy
+weiss, für welchen Namen es das self-signed Zertifikat ausstellen soll.
 
 `tls internal` erzeugt ein selbstsigniertes Zertifikat. Reicht zum normalen Browsen
 (Warnung im Browser einmalig wegklicken), aber Browser vertrauen diesem Zertifikat nie
