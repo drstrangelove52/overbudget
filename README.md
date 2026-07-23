@@ -303,17 +303,30 @@ Das mitgelieferte `Caddyfile` terminiert HTTPS für die per `LAN_IP` übergebene
 kein manueller Hostname-Eintrag nötig):
 
 ```caddy
+{
+	default_sni {$LAN_IP}
+}
+
 https://{$LAN_IP} {
     tls internal
     reverse_proxy frontend:80
 }
 ```
 
-**Wichtig:** Ein reiner Port-Block ohne Hostnamen (`:443 { tls internal }`) funktioniert
-hier *nicht* — Caddy kann dann keinem Zertifikat eine Adresse zuordnen und bricht den
-TLS-Handshake mit einem `internal_error`-Alert ab (beim Testen auf overbudget01 so
-gefunden). Ein konkreter Hostname oder eine IP im Site-Block ist zwingend, damit Caddy
-weiss, für welchen Namen es das self-signed Zertifikat ausstellen soll.
+**Zwei Gotchas, live auf overbudget01 gefunden:**
+1. Ein reiner Port-Block ohne Hostnamen (`:443 { tls internal }`) funktioniert *nicht* —
+   Caddy kann dann keinem Zertifikat eine Adresse zuordnen und bricht den TLS-Handshake
+   mit einem `internal_error`-Alert ab. Ein konkreter Hostname oder eine IP im Site-Block
+   ist zwingend, damit Caddy weiss, für welchen Namen es das self-signed Zertifikat
+   ausstellen soll.
+2. Selbst mit `https://{$LAN_IP}` als Site-Adresse schlägt der Handshake noch fehl,
+   sobald der Client **kein SNI sendet** — und genau das tun curl, die meisten
+   RFC-konformen HTTP-Clients (inkl. Tailscale) und teils Browser bei einer nackten
+   IP-Adresse, da SNI laut RFC 6066 nur für DNS-Hostnamen vorgesehen ist. Ohne SNI fällt
+   Caddy auf die lokale Socket-Adresse zurück — innerhalb des Docker-Containers ist das
+   die interne Bridge-IP (z.B. `172.18.0.6`), nie die echte `LAN_IP` — und findet dafür
+   kein passendes Zertifikat. Der globale `default_sni {$LAN_IP}`-Eintrag oben behebt
+   das: Caddy nimmt bei fehlendem SNI automatisch `{$LAN_IP}` an.
 
 `tls internal` erzeugt ein selbstsigniertes Zertifikat. Reicht zum normalen Browsen
 (Warnung im Browser einmalig wegklicken), aber Browser vertrauen diesem Zertifikat nie
