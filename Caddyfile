@@ -1,8 +1,8 @@
-http://your-hostname.local {
-    redir https://your-hostname.local{uri} permanent
+:80 {
+    redir https://{host}{uri} permanent
 }
 
-your-hostname.local {
+:443 {
     tls internal
     reverse_proxy frontend:80
 }

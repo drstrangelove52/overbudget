@@ -32,7 +32,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { setToken } from '../api.js'
+import { setLoggedIn } from '../api.js'
 
 const router = useRouter()
 const username = ref('')
@@ -51,7 +51,7 @@ async function login() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { error.value = data.detail ?? 'Anmeldung fehlgeschlagen.'; return }
-    setToken(data.access_token)
+    setLoggedIn(true)
     router.push('/')
   } catch {
     error.value = 'Netzwerkfehler.'

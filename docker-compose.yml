@@ -1,3 +1,5 @@
+name: overbudget
+
 services:
   db:
     image: mariadb:11.4
@@ -36,7 +38,6 @@ services:
       ATTACHMENTS_PATH: /data/attachments
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret}
       GPG_PASSPHRASE: ${GPG_PASSPHRASE:-}
     volumes:
       - ./backend:/app
@@ -58,7 +59,6 @@ services:
       ATTACHMENTS_PATH: /data/attachments
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret}
       GPG_PASSPHRASE: ${GPG_PASSPHRASE:-}
     volumes:
       - ./backend:/app
@@ -73,8 +73,6 @@ services:
   frontend:
     build: ./frontend
     restart: unless-stopped
-    ports:
-      - "3000:80"
     depends_on:
       - api
 
@@ -82,8 +80,8 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "${LAN_IP}:80:80"
+      - "${LAN_IP}:443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

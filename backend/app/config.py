@@ -9,8 +9,8 @@ class Settings(BaseSettings):
 
     app_username: str = "admin"
     app_password: str = "changeme"
-    jwt_secret: str = "change-this-secret"
     gpg_passphrase: str = ""
+    session_cookie_secure: bool = True
 
     class Config:
         env_file = ".env"

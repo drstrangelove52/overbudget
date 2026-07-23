@@ -85,7 +85,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { RouterView, RouterLink, useRouter } from 'vue-router'
-import { removeToken } from './api.js'
+import { apiFetch, setLoggedIn } from './api.js'
 
 const router = useRouter()
 
@@ -105,8 +105,9 @@ function toggleDark() {
   document.documentElement.classList.toggle('dark', isDark.value)
 }
 
-function logout() {
-  removeToken()
+async function logout() {
+  await apiFetch('/api/auth/logout', { method: 'POST' })
+  setLoggedIn(false)
   router.push('/login')
 }
 

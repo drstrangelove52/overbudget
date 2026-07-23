@@ -4,6 +4,7 @@ from app.models.transaction import Transaction, TransactionStatus
 from app.models.rule import Rule, RuleCondition, ConditionField, ConditionOperator, ConditionLogic
 from app.models.budget import Budget, BudgetPeriod
 from app.models.app_setting import AppSetting
+from app.models.auth_session import AuthSession
 
 __all__ = [
     "Account", "AccountType",
@@ -12,4 +13,5 @@ __all__ = [
     "Rule", "RuleCondition", "ConditionField", "ConditionOperator", "ConditionLogic",
     "Budget", "BudgetPeriod",
     "AppSetting",
+    "AuthSession",
 ]

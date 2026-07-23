@@ -1,33 +1,38 @@
 import secrets
 from datetime import datetime, timedelta
 
-import bcrypt
-from jose import JWTError, jwt
-from sqlalchemy.orm import Session
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
 from app.models.app_setting import AppSetting
+from app.models.auth_session import AuthSession
 
-_ALGORITHM = "HS256"
-_TOKEN_EXPIRE_DAYS = 30
 _KEY_USERNAME = "auth.username"
 _KEY_PASSWORD_HASH = "auth.password_hash"
+SESSION_MAX_AGE_DAYS = 30
+
+_ph = PasswordHasher()
 
 
 def _hash(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return _ph.hash(password)
 
 
 def _verify(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+    try:
+        return _ph.verify(hashed, password)
+    except VerifyMismatchError:
+        return False
 
 
-def _get(db: Session, key: str) -> str | None:
+def _get(db: DBSession, key: str) -> str | None:
     row = db.get(AppSetting, key)
     return row.value if row else None
 
 
-def _set(db: Session, key: str, value: str) -> None:
+def _set(db: DBSession, key: str, value: str) -> None:
     row = db.get(AppSetting, key)
     if row:
         row.value = value
@@ -36,14 +41,18 @@ def _set(db: Session, key: str, value: str) -> None:
     db.commit()
 
 
-def seed_credentials(db: Session) -> None:
+def seed_credentials(db: DBSession) -> None:
     if _get(db, _KEY_USERNAME) is None:
         _set(db, _KEY_USERNAME, settings.app_username)
     if _get(db, _KEY_PASSWORD_HASH) is None:
         _set(db, _KEY_PASSWORD_HASH, _hash(settings.app_password))
 
 
-def verify_credentials(db: Session, username: str, password: str) -> bool:
+def get_current_username(db: DBSession) -> str | None:
+    return _get(db, _KEY_USERNAME)
+
+
+def verify_credentials(db: DBSession, username: str, password: str) -> bool:
     stored_username = _get(db, _KEY_USERNAME)
     stored_hash = _get(db, _KEY_PASSWORD_HASH)
     if stored_username is None or stored_hash is None:
@@ -54,7 +63,7 @@ def verify_credentials(db: Session, username: str, password: str) -> bool:
     )
 
 
-def update_credentials(db: Session, new_username: str | None, new_password: str | None) -> str:
+def update_credentials(db: DBSession, new_username: str | None, new_password: str | None) -> str:
     current_username = _get(db, _KEY_USERNAME) or settings.app_username
     if new_username:
         _set(db, _KEY_USERNAME, new_username)
@@ -64,14 +73,30 @@ def update_credentials(db: Session, new_username: str | None, new_password: str 
     return current_username
 
 
-def create_access_token(username: str) -> str:
-    expire = datetime.utcnow() + timedelta(days=_TOKEN_EXPIRE_DAYS)
-    return jwt.encode({"sub": username, "exp": expire}, settings.jwt_secret, algorithm=_ALGORITHM)
+def create_session(db: DBSession) -> tuple[str, int]:
+    """Creates a new session token and opportunistically prunes expired ones.
+    Returns (token, max_age_seconds) for the Set-Cookie header."""
+    db.query(AuthSession).filter(AuthSession.expires_at < datetime.utcnow()).delete()
+    token = secrets.token_urlsafe(32)
+    now = datetime.utcnow()
+    db.add(AuthSession(token=token, created_at=now, expires_at=now + timedelta(days=SESSION_MAX_AGE_DAYS)))
+    db.commit()
+    return token, SESSION_MAX_AGE_DAYS * 24 * 3600
 
 
-def decode_token(token: str) -> str | None:
-    try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[_ALGORITHM])
-        return payload.get("sub")
-    except JWTError:
-        return None
+def validate_session(db: DBSession, token: str) -> bool:
+    row = db.get(AuthSession, token)
+    if row is None:
+        return False
+    if row.expires_at < datetime.utcnow():
+        db.delete(row)
+        db.commit()
+        return False
+    return True
+
+
+def delete_session(db: DBSession, token: str) -> None:
+    row = db.get(AuthSession, token)
+    if row:
+        db.delete(row)
+        db.commit()

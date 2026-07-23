@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.database import SessionLocal
 from app.dependencies import get_current_user
+from app.limiter import limiter
 from app.routers import accounts, auth, backup, budgets, documents, health, rules, transactions
 from app.services.auth import seed_credentials
 
@@ -21,12 +23,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="OverBudget API", version="0.1.0", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _auth = [Depends(get_current_user)]
 

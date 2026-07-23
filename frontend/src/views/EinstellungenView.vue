@@ -78,7 +78,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { apiFetch, setToken } from '../api.js'
+import { apiFetch } from '../api.js'
 
 // Zugangsdaten
 const cred = ref({ currentPassword: '', newUsername: '', newPassword: '', confirmPassword: '' })
@@ -116,7 +116,6 @@ async function saveCredentials() {
       credError.value = data.detail ?? 'Fehler beim Speichern.'
       return
     }
-    setToken(data.access_token)
     credSuccess.value = 'Zugangsdaten erfolgreich geändert.'
     cred.value = { currentPassword: '', newUsername: '', newPassword: '', confirmPassword: '' }
   } catch {

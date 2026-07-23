@@ -1,17 +1,15 @@
 export function apiFetch(url, options = {}) {
-  const token = localStorage.getItem('token')
-  const headers = { ...options.headers }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  return fetch(url, { ...options, headers }).then((res) => {
+  return fetch(url, options).then((res) => {
     if (res.status === 401) {
-      localStorage.removeItem('token')
+      setLoggedIn(false)
       window.location.href = '/login'
     }
     return res
   })
 }
 
-export const getToken = () => localStorage.getItem('token')
-export const setToken = (t) => localStorage.setItem('token', t)
-export const removeToken = () => localStorage.removeItem('token')
+export const isLoggedIn = () => localStorage.getItem('loggedIn') === '1'
+export const setLoggedIn = (v) => {
+  if (v) localStorage.setItem('loggedIn', '1')
+  else localStorage.removeItem('loggedIn')
+}

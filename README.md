@@ -11,41 +11,39 @@ Self-hosted persönliche Buchhaltungssoftware nach dem Prinzip der doppelten Buc
 - **Budgets** — Monatliche Limits pro Konto verfolgen
 - **Verschlüsselte Backups** — AES-256 via GPG, im Browser herunterladbar
 - **Dark Mode** — Hell/Dunkel umschaltbar
-- **JWT-Authentifizierung** — Einzelner Benutzer, kein Benutzermanagement nötig
+- **Session-Cookie-Authentifizierung** — Einzelner Benutzer, kein Benutzermanagement nötig
 - **HTTPS** — Caddy als Reverse Proxy mit automatischem internem Zertifikat
 
 ---
 
 ## Schnellstart
 
-### Voraussetzungen
-
-- Docker und Docker Compose
-- (optional) Caddy für HTTPS
-
-### Installation
+### Auf einer VM installieren (automatisiert)
 
 ```bash
-git clone <repo-url> overbudget
+git clone https://github.com/drstrangelove52/overbudget.git
 cd overbudget
-cp .env.example .env   # Passwörter anpassen!
-docker compose up -d
+./install.sh
 ```
 
-Die Anwendung ist danach unter `http://localhost:3000` erreichbar.
+Installiert Docker + Tailscale, generiert `.env` mit zufälligen Secrets (DB-Passwörter,
+Admin-Passwort, GPG-Passphrase), baut und startet den Stack und richtet Tailscale-HTTPS
+ein. Siehe Kommentar am Kopf von `install.sh` für optionale Umgebungsvariablen
+(`TAILSCALE_AUTHKEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `LAN_IP`, …). Idempotent —
+`git pull && ./install.sh` ist auch der Update-Workflow.
 
-### .env konfigurieren
+### Lokal starten (manuell)
 
-```dotenv
-DB_ROOT_PASSWORD=sicheres-root-passwort
-DB_PASSWORD=sicheres-db-passwort
-APP_USERNAME=admin
-APP_PASSWORD=sicheres-passwort          # Login-Passwort
-JWT_SECRET=langer-zufaelliger-string    # min. 32 Zeichen
-GPG_PASSPHRASE=backup-passphrase        # für verschlüsselte Backups
+```bash
+cp .env.example .env
+# .env anpassen (DB-Passwörter, APP_USERNAME/APP_PASSWORD, GPG_PASSPHRASE, LAN_IP)
+docker compose up --build -d
 ```
 
-**Wichtig:** `JWT_SECRET` und `GPG_PASSPHRASE` unbedingt ändern. Ohne `GPG_PASSPHRASE` schlägt der Backup fehl.
+Frontend: `https://<LAN_IP>` (selbstsigniertes Zertifikat, Browser-Warnung beim ersten Aufruf bestätigen; HTTP leitet automatisch auf HTTPS um)
+Backend-API: `https://<LAN_IP>/api` (via Caddy/Nginx-Proxy)
+
+**Wichtig:** `GPG_PASSPHRASE` unbedingt ändern, sonst schlägt der Backup fehl.
 
 ---
 
@@ -55,9 +53,9 @@ GPG_PASSPHRASE=backup-passphrase        # für verschlüsselte Backups
 Browser
   │
   ▼
-Caddy (HTTPS-Reverse-Proxy, Port 80/443)
-  ├─► Frontend (Vue 3, Port 3000/80)
-  └─► API (FastAPI, Port 8000)
+Caddy (HTTPS-Reverse-Proxy, Port 80/443 auf LAN-IP)
+  ├─► Frontend (Vue 3, intern Port 80)
+  └─► API (FastAPI, intern Port 8000)
         ├─► MariaDB (doppelte Buchführung)
         └─► Redis ──► Celery Worker (OCR, async Tasks)
 ```
@@ -70,8 +68,8 @@ Caddy (HTTPS-Reverse-Proxy, Port 80/443)
 | `redis`    | redis:7.4-alpine | —     | Task-Queue für Celery                |
 | `api`      | ./backend        | 8000  | REST-API, Alembic-Migrationen        |
 | `worker`   | ./backend        | —     | Celery-Worker (OCR, async Tasks)     |
-| `frontend` | ./frontend       | 3000  | Vue 3 Single Page Application        |
-| `caddy`    | caddy:2-alpine   | 80/443| HTTPS, Reverse Proxy                 |
+| `frontend` | ./frontend       | 80 (intern) | Vue 3 Single Page Application   |
+| `caddy`    | caddy:2-alpine   | 80/443 (LAN-IP) | HTTPS, Reverse Proxy        |
 
 ---
 
@@ -79,22 +77,20 @@ Caddy (HTTPS-Reverse-Proxy, Port 80/443)
 
 Basis-URL: `https://<host>/api` (oder `http://localhost:8000/api`)
 
-Alle Endpunkte ausser `/auth/login` erfordern `Authorization: Bearer <token>`.
+Alle Endpunkte ausser `/auth/login` erfordern ein gültiges Session-Cookie (`session`, httpOnly, wird beim Login gesetzt).
 
 ### Authentifizierung
 
-| Methode | Pfad              | Beschreibung                  |
-|---------|-------------------|-------------------------------|
-| POST    | `/auth/login`     | Login, gibt JWT zurück        |
+| Methode | Pfad              | Beschreibung                          |
+|---------|-------------------|----------------------------------------|
+| POST    | `/auth/login`     | Login, setzt das Session-Cookie        |
+| POST    | `/auth/logout`    | Logout, invalidiert die Session serverseitig |
 
 **Request:**
 ```json
 { "username": "admin", "password": "changeme" }
 ```
-**Response:**
-```json
-{ "access_token": "eyJ...", "token_type": "bearer" }
-```
+**Response:** `{ "detail": "ok" }` — das Session-Cookie kommt über den `Set-Cookie`-Header, nicht im Body.
 
 ### Konten (`/accounts`)
 
@@ -300,26 +296,39 @@ Das **Festkonto** ist das Konto, das bei jeder Buchung im Import auf einer Seite
 
 ## HTTPS einrichten
 
-### Mit Caddy (internes Netzwerk)
+### Mit Caddy (LAN-Direktzugriff)
 
-Das mitgelieferte `Caddyfile` stellt HTTPS für einen lokalen Hostnamen bereit:
+Das mitgelieferte `Caddyfile` terminiert HTTPS portbasiert (nicht an einen festen Hostnamen
+gebunden — läuft daher unverändert auf jeder VM):
 
 ```caddy
-claudecode01.pe.lan {
+:443 {
     tls internal
     reverse_proxy frontend:80
 }
 ```
 
-`tls internal` erzeugt ein selbstsigniertes Zertifikat. Dem Caddy-Root-CA muss einmalig im Browser vertraut werden.
+`tls internal` erzeugt ein selbstsigniertes Zertifikat. Reicht zum normalen Browsen
+(Warnung im Browser einmalig wegklicken), aber Browser vertrauen diesem Zertifikat nie
+wirklich — für sicherheitsrelevante Nutzung (z.B. Zugriff von unterwegs) siehe Tailscale
+unten.
 
-### Mit Tailscale (empfohlen für Remote-Zugriff)
+### Mit Tailscale (empfohlen, macht `install.sh` automatisch)
+
+`install.sh` installiert Tailscale, verbindet die VM mit dem Tailnet und richtet
+`tailscale serve` ein, das ein echtes, öffentlich vertrauenswürdiges Zertifikat fürs
+Tailnet bereitstellt und den Traffic intern an Caddy weiterreicht:
 
 ```bash
-# Tailscale installieren und HTTPS aktivieren
-tailscale up --advertise-routes=...
-tailscale cert <hostname>.ts.net
+sudo tailscale serve --bg "https+insecure://${LAN_IP}:443"
 ```
+
+Die App ist danach unter `https://<tailscale-hostname>.tailXXXX.ts.net` ohne
+Zertifikatswarnung erreichbar — auch von ausserhalb des LANs, sofern das Gerät im
+selben Tailnet ist. **Wichtig:** Docker published Ports standardmässig auf alle
+Host-Interfaces inkl. `tailscale0` — `docker-compose.yml` bindet Caddys Ports deshalb
+explizit auf `${LAN_IP}` statt `0.0.0.0`, sonst würde Tailscale Caddys self-signed statt
+seinem eigenen echten Zertifikat sehen.
 
 ---
 
@@ -365,8 +374,13 @@ docker compose exec api sh -c \
 ```bash
 cd backend
 pip install -r requirements.txt
-DATABASE_URL=mysql+pymysql://... uvicorn app.main:app --reload
+DATABASE_URL=mysql+pymysql://... SESSION_COOKIE_SECURE=false uvicorn app.main:app --reload
 ```
+
+`SESSION_COOKIE_SECURE=false` ist hier nötig, weil `uvicorn --reload` Klartext-HTTP spricht
+und Browser ein `Secure`-Cookie über HTTP grundsätzlich verwerfen — sonst schlägt der
+Login lokal fehl. In Produktion (hinter Caddy/Tailscale, immer HTTPS) bleibt es beim
+Default `true`.
 
 API-Dokumentation (Swagger): `http://localhost:8000/docs`
 
