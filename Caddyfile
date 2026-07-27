@@ -2,11 +2,7 @@
 	default_sni {$LAN_IP}
 }
 
-:80 {
-    redir https://{host}{uri} permanent
-}
-
-https://{$LAN_IP} {
+https://{$LAN_IP}:{$CADDY_PORT} {
     tls internal
     reverse_proxy frontend:80
 }

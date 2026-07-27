@@ -36,12 +36,12 @@ ein. Siehe Kommentar am Kopf von `install.sh` für optionale Umgebungsvariablen
 
 ```bash
 cp .env.example .env
-# .env anpassen (DB-Passwörter, APP_USERNAME/APP_PASSWORD, GPG_PASSPHRASE, LAN_IP)
+# .env anpassen (DB-Passwörter, APP_USERNAME/APP_PASSWORD, GPG_PASSPHRASE, LAN_IP, CADDY_PORT)
 docker compose up --build -d
 ```
 
-Frontend: `https://<LAN_IP>` (selbstsigniertes Zertifikat, Browser-Warnung beim ersten Aufruf bestätigen; HTTP leitet automatisch auf HTTPS um)
-Backend-API: `https://<LAN_IP>/api` (via Caddy/Nginx-Proxy)
+Frontend: `https://<LAN_IP>:<CADDY_PORT>` (selbstsigniertes Zertifikat, Browser-Warnung beim ersten Aufruf bestätigen — `CADDY_PORT` ist overbudgets feste Zuteilung aus dem Port-Schema für mehrere Apps auf einer VM, siehe Docker App Standard)
+Backend-API: `https://<LAN_IP>:<CADDY_PORT>/api` (via Caddy/Nginx-Proxy)
 
 **Wichtig:** `GPG_PASSPHRASE` unbedingt ändern, sonst schlägt der Backup fehl.
 
@@ -53,7 +53,7 @@ Backend-API: `https://<LAN_IP>/api` (via Caddy/Nginx-Proxy)
 Browser
   │
   ▼
-Caddy (HTTPS-Reverse-Proxy, Port 80/443 auf LAN-IP)
+Caddy (HTTPS-Reverse-Proxy, Port <CADDY_PORT> auf LAN-IP)
   ├─► Frontend (Vue 3, intern Port 80)
   └─► API (FastAPI, intern Port 8000)
         ├─► MariaDB (doppelte Buchführung)
@@ -69,7 +69,7 @@ Caddy (HTTPS-Reverse-Proxy, Port 80/443 auf LAN-IP)
 | `api`      | ./backend        | 8000  | REST-API, Alembic-Migrationen        |
 | `worker`   | ./backend        | —     | Celery-Worker (OCR, async Tasks)     |
 | `frontend` | ./frontend       | 80 (intern) | Vue 3 Single Page Application   |
-| `caddy`    | caddy:2-alpine   | 80/443 (LAN-IP) | HTTPS, Reverse Proxy        |
+| `caddy`    | caddy:2-alpine   | `<CADDY_PORT>` (LAN-IP) | HTTPS, Reverse Proxy |
 
 ---
 
@@ -307,11 +307,16 @@ kein manueller Hostname-Eintrag nötig):
 	default_sni {$LAN_IP}
 }
 
-https://{$LAN_IP} {
+https://{$LAN_IP}:{$CADDY_PORT} {
     tls internal
     reverse_proxy frontend:80
 }
 ```
+
+`CADDY_PORT` ist overbudgets feste Zuteilung aus dem Port-Schema für mehrere Apps auf
+einer VM (`8082`, siehe Docker App Standard) — auf einer geteilten VM kann nicht jede App
+Port 443 exklusiv beanspruchen, deshalb kein `:80`-Redirect-Block mehr wie bei einer
+einzelnen App auf eigener VM.
 
 **Zwei Gotchas, live auf overbudget01 gefunden:**
 1. Ein reiner Port-Block ohne Hostnamen (`:443 { tls internal }`) funktioniert *nicht* —
@@ -340,12 +345,15 @@ unten.
 Tailnet bereitstellt und den Traffic intern an Caddy weiterreicht:
 
 ```bash
-sudo tailscale serve --bg "https+insecure://${LAN_IP}:443"
+sudo tailscale serve --bg --https=8444 "https+insecure://${LAN_IP}:8082"
 ```
 
-Die App ist danach unter `https://<tailscale-hostname>.tailXXXX.ts.net` ohne
-Zertifikatswarnung erreichbar — auch von ausserhalb des LANs, sofern das Gerät im
-selben Tailnet ist. **Wichtig:** Docker published Ports standardmässig auf alle
+Port `8444` statt des Tailscale-Default-443, weil sich mehrere Apps denselben
+Tailscale-Node (die VM) teilen — jede bekommt ihren eigenen externen Port (Port-Schema
+siehe Docker App Standard). Die App ist danach unter
+`https://<tailscale-hostname>.tailXXXX.ts.net:8444` ohne Zertifikatswarnung erreichbar —
+auch von ausserhalb des LANs, sofern das Gerät im selben Tailnet ist. **Wichtig:** Docker
+published Ports standardmässig auf alle
 Host-Interfaces inkl. `tailscale0` — `docker-compose.yml` bindet Caddys Ports deshalb
 explizit auf `${LAN_IP}` statt `0.0.0.0`, sonst würde Tailscale Caddys self-signed statt
 seinem eigenen echten Zertifikat sehen.

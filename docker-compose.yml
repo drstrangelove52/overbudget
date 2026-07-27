@@ -81,9 +81,9 @@ services:
     restart: unless-stopped
     environment:
       LAN_IP: ${LAN_IP}
+      CADDY_PORT: ${CADDY_PORT}
     ports:
-      - "${LAN_IP}:80:80"
-      - "${LAN_IP}:443:443"
+      - "${LAN_IP}:${CADDY_PORT}:${CADDY_PORT}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

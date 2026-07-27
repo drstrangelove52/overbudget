@@ -4,9 +4,13 @@
 # Run on a fresh Ubuntu/Debian VM as a normal user with sudo rights, from
 # inside the repo directory (e.g. ~/overbudget). Installs Docker and
 # Tailscale, generates .env with random secrets, builds and starts the
-# stack, and wires up Tailscale HTTPS. Safe to re-run — every step is
-# skipped or updated in place if it was already done, so `git pull &&
-# ./install.sh` is also the update workflow.
+# stack, and wires up Tailscale HTTPS on this app's assigned port. Safe to
+# re-run — every step is skipped or updated in place if it was already
+# done, so `git pull && ./install.sh` is also the update workflow.
+#
+# CADDY_PORT / TAILSCALE_HTTPS_PORT are overbudget's fixed assignment from
+# the shared-VM port scheme (see the Docker App Standard resource note) —
+# only change these if that scheme changes, not per-deployment.
 #
 # Fully automated if these are set beforehand (as environment variables);
 # otherwise falls back to a prompt only where truly unavoidable
@@ -16,7 +20,6 @@
 #                         https://login.tailscale.com/admin/settings/keys
 #                         (optional — without it, `tailscale up` prints a
 #                         login URL to open once, manually)
-#   TAILSCALE_HOSTNAME   Overrides the default "overbudget01"
 #   ADMIN_USERNAME       Login username (default: admin)
 #   ADMIN_PASSWORD       Login password (default: random, printed at the
 #                         end — change it under "Einstellungen" after
@@ -41,7 +44,8 @@ fi
 log "sudo-Berechtigung wird geprüft…"
 sudo -v
 
-TAILSCALE_HOSTNAME="${TAILSCALE_HOSTNAME:-overbudget01}"
+CADDY_PORT="${CADDY_PORT:-8082}"
+TAILSCALE_HTTPS_PORT="${TAILSCALE_HTTPS_PORT:-8444}"
 
 # 1. Docker ------------------------------------------------------------
 if ! command -v docker >/dev/null 2>&1; then
@@ -52,6 +56,9 @@ else
 fi
 
 # 2. Tailscale -----------------------------------------------------------
+# No --hostname flag: this may run on a shared VM alongside other Over-Apps,
+# so the Tailscale node keeps the VM's own name instead of being forced to
+# an app-specific one.
 if ! command -v tailscale >/dev/null 2>&1; then
   log "Tailscale wird installiert…"
   curl -fsSL https://tailscale.com/install.sh | sudo sh
@@ -62,10 +69,10 @@ fi
 if ! sudo tailscale status >/dev/null 2>&1; then
   log "Tailscale wird verbunden…"
   if [ -n "${TAILSCALE_AUTHKEY:-}" ]; then
-    sudo tailscale up --authkey="$TAILSCALE_AUTHKEY" --hostname="$TAILSCALE_HOSTNAME"
+    sudo tailscale up --authkey="$TAILSCALE_AUTHKEY"
   else
     warn "Kein TAILSCALE_AUTHKEY gesetzt — bitte den gleich ausgegebenen Link öffnen und mit deinem Tailscale-Konto bestätigen."
-    sudo tailscale up --hostname="$TAILSCALE_HOSTNAME"
+    sudo tailscale up
   fi
 else
   log "Tailscale bereits verbunden, übersprungen."
@@ -95,6 +102,7 @@ if [ ! -f .env ]; then
   cp .env.example .env
   sed -i \
     -e "s|^LAN_IP=.*|LAN_IP=${RESOLVED_LAN_IP}|" \
+    -e "s|^CADDY_PORT=.*|CADDY_PORT=${CADDY_PORT}|" \
     -e "s|^DB_ROOT_PASSWORD=.*|DB_ROOT_PASSWORD=$(openssl rand -base64 24)|" \
     -e "s|^DB_PASSWORD=.*|DB_PASSWORD=$(openssl rand -base64 24)|" \
     -e "s|^APP_USERNAME=.*|APP_USERNAME=${RESOLVED_ADMIN_USERNAME}|" \
@@ -117,7 +125,7 @@ sudo docker compose up --build -d
 log "Warte auf das Backend…"
 BACKEND_UP=false
 for _ in $(seq 1 30); do
-  if curl -skf -o /dev/null "https://${LAN_IP}/api/health"; then
+  if curl -skf -o /dev/null "https://${LAN_IP}:${CADDY_PORT}/api/health"; then
     BACKEND_UP=true
     break
   fi
@@ -130,12 +138,12 @@ fi
 
 # 5. Tailscale HTTPS --------------------------------------------------------
 log "Tailscale HTTPS wird eingerichtet…"
-sudo tailscale serve --bg "https+insecure://${LAN_IP}:443"
+sudo tailscale serve --bg --https="${TAILSCALE_HTTPS_PORT}" "https+insecure://${LAN_IP}:${CADDY_PORT}"
 
 # 6. Summary ----------------------------------------------------------------
 log "Fertig!"
-echo "LAN (Zertifikatswarnung nötig):  https://${LAN_IP}"
-echo "Tailscale (echtes Zertifikat):  https://${TAILSCALE_DNS}"
+echo "LAN (Zertifikatswarnung nötig):  https://${LAN_IP}:${CADDY_PORT}"
+echo "Tailscale (echtes Zertifikat):  https://${TAILSCALE_DNS}:${TAILSCALE_HTTPS_PORT}"
 echo
 echo "Login:    ${APP_USERNAME}"
 if [ "$GENERATED_ADMIN_PASSWORD" = true ]; then
