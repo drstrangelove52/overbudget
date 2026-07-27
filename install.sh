@@ -2,21 +2,17 @@
 # OverBudget — fully automated install script.
 #
 # Run on a fresh Ubuntu/Debian VM as a normal user with sudo rights, from
-# inside the repo directory (e.g. ~/overbudget). Installs Docker and
-# Tailscale, generates .env with random secrets, builds and starts the
-# stack, and wires up Tailscale HTTPS. Safe to re-run — every step is
-# skipped or updated in place if it was already done, so `git pull &&
-# ./install.sh` is also the update workflow.
+# inside the repo directory (e.g. ~/overbudget). Installs Docker, generates
+# .env with random secrets, and builds/starts the stack. Safe to re-run —
+# every step is skipped or updated in place if it was already done, so
+# `git pull && ./install.sh` is also the update workflow.
 #
-# Fully automated if these are set beforehand (as environment variables);
-# otherwise falls back to a prompt only where truly unavoidable
-# (Tailscale login, if no auth key is given):
+# NOTE: unlike OverCook/overterm, overbudget is deliberately LAN-only — no
+# Tailscale. Martin explicitly does not want it reachable remotely (2026-07-27).
+# Don't add Tailscale setup back here without checking first.
 #
-#   TAILSCALE_AUTHKEY    Reusable/ephemeral key from
-#                         https://login.tailscale.com/admin/settings/keys
-#                         (optional — without it, `tailscale up` prints a
-#                         login URL to open once, manually)
-#   TAILSCALE_HOSTNAME   Overrides the default "overbudget01"
+# Fully automated if these are set beforehand (as environment variables):
+#
 #   ADMIN_USERNAME       Login username (default: admin)
 #   ADMIN_PASSWORD       Login password (default: random, printed at the
 #                         end — change it under "Einstellungen" after
@@ -24,7 +20,7 @@
 #   LAN_IP                Overrides the auto-detected primary LAN IP
 #
 # Usage:
-#   TAILSCALE_AUTHKEY=tskey-... ./install.sh
+#   ./install.sh
 
 set -euo pipefail
 
@@ -41,8 +37,6 @@ fi
 log "sudo-Berechtigung wird geprüft…"
 sudo -v
 
-TAILSCALE_HOSTNAME="${TAILSCALE_HOSTNAME:-overbudget01}"
-
 # 1. Docker ------------------------------------------------------------
 if ! command -v docker >/dev/null 2>&1; then
   log "Docker wird installiert…"
@@ -51,29 +45,7 @@ else
   log "Docker bereits installiert, übersprungen."
 fi
 
-# 2. Tailscale -----------------------------------------------------------
-if ! command -v tailscale >/dev/null 2>&1; then
-  log "Tailscale wird installiert…"
-  curl -fsSL https://tailscale.com/install.sh | sudo sh
-else
-  log "Tailscale bereits installiert, übersprungen."
-fi
-
-if ! sudo tailscale status >/dev/null 2>&1; then
-  log "Tailscale wird verbunden…"
-  if [ -n "${TAILSCALE_AUTHKEY:-}" ]; then
-    sudo tailscale up --authkey="$TAILSCALE_AUTHKEY" --hostname="$TAILSCALE_HOSTNAME"
-  else
-    warn "Kein TAILSCALE_AUTHKEY gesetzt — bitte den gleich ausgegebenen Link öffnen und mit deinem Tailscale-Konto bestätigen."
-    sudo tailscale up --hostname="$TAILSCALE_HOSTNAME"
-  fi
-else
-  log "Tailscale bereits verbunden, übersprungen."
-fi
-
-TAILSCALE_DNS="$(sudo tailscale status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
-
-# 3. .env -----------------------------------------------------------------
+# 2. .env -----------------------------------------------------------------
 GENERATED_ADMIN_PASSWORD=false
 if [ ! -f .env ]; then
   log ".env wird generiert…"
@@ -110,7 +82,7 @@ set -a
 source .env
 set +a
 
-# 4. Build & start ------------------------------------------------------
+# 3. Build & start ------------------------------------------------------
 log "Container werden gebaut und gestartet…"
 sudo docker compose up --build -d
 
@@ -128,14 +100,9 @@ if [ "$BACKEND_UP" != true ]; then
   exit 1
 fi
 
-# 5. Tailscale HTTPS --------------------------------------------------------
-log "Tailscale HTTPS wird eingerichtet…"
-sudo tailscale serve --bg "https+insecure://${LAN_IP}:443"
-
-# 6. Summary ----------------------------------------------------------------
+# 4. Summary ----------------------------------------------------------------
 log "Fertig!"
 echo "LAN (Zertifikatswarnung nötig):  https://${LAN_IP}"
-echo "Tailscale (echtes Zertifikat):  https://${TAILSCALE_DNS}"
 echo
 echo "Login:    ${APP_USERNAME}"
 if [ "$GENERATED_ADMIN_PASSWORD" = true ]; then

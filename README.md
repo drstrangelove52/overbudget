@@ -13,6 +13,7 @@ Self-hosted persönliche Buchhaltungssoftware nach dem Prinzip der doppelten Buc
 - **Dark Mode** — Hell/Dunkel umschaltbar
 - **Session-Cookie-Authentifizierung** — Einzelner Benutzer, kein Benutzermanagement nötig
 - **HTTPS** — Caddy als Reverse Proxy mit automatischem internem Zertifikat
+- **LAN-only** — bewusst nicht über Tailscale/VPN von unterwegs erreichbar
 
 ---
 
@@ -26,11 +27,13 @@ cd overbudget
 ./install.sh
 ```
 
-Installiert Docker + Tailscale, generiert `.env` mit zufälligen Secrets (DB-Passwörter,
-Admin-Passwort, GPG-Passphrase), baut und startet den Stack und richtet Tailscale-HTTPS
-ein. Siehe Kommentar am Kopf von `install.sh` für optionale Umgebungsvariablen
-(`TAILSCALE_AUTHKEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `LAN_IP`, …). Idempotent —
-`git pull && ./install.sh` ist auch der Update-Workflow.
+Installiert Docker, generiert `.env` mit zufälligen Secrets (DB-Passwörter,
+Admin-Passwort, GPG-Passphrase) und baut/startet den Stack. Siehe Kommentar am Kopf von
+`install.sh` für optionale Umgebungsvariablen (`ADMIN_USERNAME`, `ADMIN_PASSWORD`,
+`LAN_IP`, …). Idempotent — `git pull && ./install.sh` ist auch der Update-Workflow.
+
+**Bewusst kein Tailscale** — anders als OverCook/overterm soll overbudget nicht von
+unterwegs erreichbar sein, bleibt LAN-only.
 
 ### Lokal starten (manuell)
 
@@ -329,26 +332,8 @@ https://{$LAN_IP} {
    das: Caddy nimmt bei fehlendem SNI automatisch `{$LAN_IP}` an.
 
 `tls internal` erzeugt ein selbstsigniertes Zertifikat. Reicht zum normalen Browsen
-(Warnung im Browser einmalig wegklicken), aber Browser vertrauen diesem Zertifikat nie
-wirklich — für sicherheitsrelevante Nutzung (z.B. Zugriff von unterwegs) siehe Tailscale
-unten.
-
-### Mit Tailscale (empfohlen, macht `install.sh` automatisch)
-
-`install.sh` installiert Tailscale, verbindet die VM mit dem Tailnet und richtet
-`tailscale serve` ein, das ein echtes, öffentlich vertrauenswürdiges Zertifikat fürs
-Tailnet bereitstellt und den Traffic intern an Caddy weiterreicht:
-
-```bash
-sudo tailscale serve --bg "https+insecure://${LAN_IP}:443"
-```
-
-Die App ist danach unter `https://<tailscale-hostname>.tailXXXX.ts.net` ohne
-Zertifikatswarnung erreichbar — auch von ausserhalb des LANs, sofern das Gerät im
-selben Tailnet ist. **Wichtig:** Docker published Ports standardmässig auf alle
-Host-Interfaces inkl. `tailscale0` — `docker-compose.yml` bindet Caddys Ports deshalb
-explizit auf `${LAN_IP}` statt `0.0.0.0`, sonst würde Tailscale Caddys self-signed statt
-seinem eigenen echten Zertifikat sehen.
+(Warnung im Browser einmalig wegklicken). overbudget ist bewusst LAN-only — kein
+Tailscale, kein Zugriff von unterwegs (anders als OverCook/overterm).
 
 ---
 
