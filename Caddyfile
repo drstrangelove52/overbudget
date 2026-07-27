@@ -6,7 +6,7 @@
     redir https://{host}{uri} permanent
 }
 
-https://{$LAN_IP} {
+https://{$LAN_IP}, https://{$LAN_HOSTNAME} {
     tls internal
     reverse_proxy frontend:80
 }

@@ -55,6 +55,11 @@ if [ ! -f .env ]; then
     warn "Konnte die LAN-IP nicht automatisch erkennen — bitte mit LAN_IP=<ip> ./install.sh erneut starten."
     exit 1
   fi
+  RESOLVED_LAN_HOSTNAME="${LAN_HOSTNAME:-$(hostname -f 2>/dev/null || true)}"
+  if [ -z "$RESOLVED_LAN_HOSTNAME" ]; then
+    warn "Konnte den Hostnamen nicht automatisch erkennen — bitte mit LAN_HOSTNAME=<name> ./install.sh erneut starten."
+    exit 1
+  fi
 
   RESOLVED_ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
   if [ -n "${ADMIN_PASSWORD:-}" ]; then
@@ -67,6 +72,7 @@ if [ ! -f .env ]; then
   cp .env.example .env
   sed -i \
     -e "s|^LAN_IP=.*|LAN_IP=${RESOLVED_LAN_IP}|" \
+    -e "s|^LAN_HOSTNAME=.*|LAN_HOSTNAME=${RESOLVED_LAN_HOSTNAME}|" \
     -e "s|^DB_ROOT_PASSWORD=.*|DB_ROOT_PASSWORD=$(openssl rand -base64 24)|" \
     -e "s|^DB_PASSWORD=.*|DB_PASSWORD=$(openssl rand -base64 24)|" \
     -e "s|^APP_USERNAME=.*|APP_USERNAME=${RESOLVED_ADMIN_USERNAME}|" \
